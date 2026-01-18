@@ -1,0 +1,23 @@
+[package]
+name = "redqueen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+askama = "0.15.1"
+axum = "0.8.8"
+displaydoc = "0.2.5"
+git2 = "0.20.3"
+serde = "1.0.228"
+tempfile = "3.24.0"
+thiserror = "2.0.17"
+tokio = { version = "1.49.0", features = ["full"] }
+tracing-subscriber = "0.3.22"
+
+[[bin]]
+name = "rqclient"
+path = "src/client/main.rs"
+
+[[bin]]
+name = "rqserver"
+path = "src/server/main.rs"

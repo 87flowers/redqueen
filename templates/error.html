@@ -1,0 +1,15 @@
+{%- block content -%}
+    <h1>
+        {%- match err -%}
+            {% when AppError::NotFound -%} 404: Not Found
+            {% else -%} 500: Internal Server Error
+        {%- endmatch -%}
+    </h1>
+
+    {%- match err -%}
+        {% when AppError::NotFound -%}
+        {% when AppError::Render(err) -%}
+            <pre>{{ err }}</pre>
+    {%- endmatch -%}
+
+{%- endblock -%}
