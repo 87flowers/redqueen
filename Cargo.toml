@@ -9,6 +9,7 @@ axum = "0.8.8"
 displaydoc = "0.2.5"
 git2 = "0.20.3"
 serde = "1.0.228"
+sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio", "migrate"] }
 tempfile = "3.24.0"
 thiserror = "2.0.17"
 tokio = { version = "1.49.0", features = ["full"] }

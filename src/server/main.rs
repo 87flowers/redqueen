@@ -5,20 +5,39 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::get,
 };
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
+
+type Db = sqlx::SqlitePool;
+type Result<T, E = crate::AppError> = std::result::Result<T, E>;
+
+#[derive(Clone)]
+struct AppState {
+    db: Db,
+}
 
 #[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
+async fn main() -> Result<()> {
+    let db_opts = SqliteConnectOptions::new()
+        .filename("rqdatabase.db")
+        .journal_mode(SqliteJournalMode::Wal)
+        .create_if_missing(true);
+    let db = Db::connect_with(db_opts).await?;
+    let state = AppState { db };
+
     let app = Router::new()
         .route("/", get(handler))
         .route("/login", get(login_get_handler))
-        .fallback(|| async { AppError::NotFound });
+        .fallback(|| async { AppError::NotFound })
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
         .unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
 
-    axum::serve(listener, app).await
+    axum::serve(listener, app).await.unwrap();
+
+    Ok(())
 }
 
 async fn handler() -> Response {
@@ -39,6 +58,8 @@ enum AppError {
     NotFound,
     /// could not render template
     Render(#[from] askama::Error),
+    /// database error
+    Database(#[from] sqlx::Error),
 }
 
 impl IntoResponse for AppError {
@@ -46,6 +67,7 @@ impl IntoResponse for AppError {
         let status = match &self {
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::Render(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         #[derive(Template)]
