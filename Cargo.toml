@@ -15,6 +15,9 @@ thiserror = "2.0.17"
 tokio = { version = "1.49.0", features = ["full"] }
 tracing-subscriber = "0.3.22"
 
+[build]
+rustflags = ["--cfg=sqlx_macros_unstable"]
+
 [[bin]]
 name = "rqclient"
 path = "src/client/main.rs"

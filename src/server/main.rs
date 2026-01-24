@@ -22,6 +22,8 @@ async fn main() -> Result<()> {
         .journal_mode(SqliteJournalMode::Wal)
         .create_if_missing(true);
     let db = Db::connect_with(db_opts).await?;
+    sqlx::migrate!("./migrations").run(&db).await.unwrap();
+
     let state = AppState { db };
 
     let app = Router::new()
