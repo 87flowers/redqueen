@@ -17,11 +17,3 @@ tracing-subscriber = "0.3.22"
 
 [build]
 rustflags = ["--cfg=sqlx_macros_unstable"]
-
-[[bin]]
-name = "rqclient"
-path = "src/client/main.rs"
-
-[[bin]]
-name = "rqserver"
-path = "src/server/main.rs"
