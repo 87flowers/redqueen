@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE users\n                SET autoapprove = ?\n                WHERE username = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8240e6e7a6b488ff11fa3a2d3aa69a95a69f369e8145206336e55eca7397a378"
+}

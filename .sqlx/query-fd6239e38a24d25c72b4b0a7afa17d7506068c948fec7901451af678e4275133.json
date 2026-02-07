@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE users\n                SET enabled = ?\n                WHERE username = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "fd6239e38a24d25c72b4b0a7afa17d7506068c948fec7901451af678e4275133"
+}

@@ -4,10 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.100"
+argon2 = { version = "0.5.3", features = ["password-hash", "std"] }
 askama = "0.15.1"
 axum = "0.8.8"
+clap = { version = "4.5.57", features = ["derive"] }
+const-hex = "1.17.0"
 displaydoc = "0.2.5"
+ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
+futures = "0.3.31"
 git2 = "0.20.3"
+rpassword = "7.4.0"
 serde = "1.0.228"
 sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio", "migrate"] }
 tempfile = "3.24.0"
