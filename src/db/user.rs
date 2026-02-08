@@ -2,52 +2,57 @@ use super::Repository;
 use crate::domain::{Password, User, UserId};
 use futures::{Stream, stream::StreamExt};
 
+#[derive(sqlx::FromRow)]
+struct Row {
+    id: i64,
+    username: String,
+    password: Option<String>,
+    enabled: i64,
+    admin: i64,
+    autoapprove: i64,
+    approver: i64,
+}
+
+impl Row {
+    fn to_user(self) -> User {
+        User {
+            id: UserId(self.id),
+            username: self.username,
+            password: self.password.map(Password::from_hash),
+            enabled: self.enabled != 0,
+            admin: self.admin != 0,
+            autoapprove: self.autoapprove != 0,
+            approver: self.approver != 0,
+        }
+    }
+}
+
 impl Repository {
     pub async fn user_get(&self, username: &str) -> Result<Option<User>, sqlx::Error> {
-        let res = sqlx::query!(
+        sqlx::query_as!(
+            Row,
             r#"
-                SELECT id, username, password, enabled, admin, autoapprove, approver
+                SELECT *
                 FROM users
                 WHERE username = ?
             "#,
-            username
+            username,
         )
         .fetch_optional(&self.pool)
-        .await?;
-        if let Some(res) = res {
-            Ok(Some(User {
-                id: UserId(res.id),
-                username: res.username,
-                password: res.password.map(Password::from_hash),
-                enabled: res.enabled != 0,
-                admin: res.admin != 0,
-                autoapprove: res.autoapprove != 0,
-                approver: res.approver != 0,
-            }))
-        } else {
-            Ok(None)
-        }
+        .await
+        .map(|user| user.map(Row::to_user))
     }
 
     pub fn user_get_all(&self) -> impl Stream<Item = Result<User, sqlx::Error>> {
-        sqlx::query!(
+        sqlx::query_as!(
+            Row,
             r#"
-                SELECT id, username, password, enabled, admin, autoapprove, approver
+                SELECT *
                 FROM users
             "#
         )
         .fetch(&self.pool)
-        .map(|res| {
-            res.map(|res| User {
-                id: UserId(res.id),
-                username: res.username,
-                password: res.password.map(Password::from_hash),
-                enabled: res.enabled != 0,
-                admin: res.admin != 0,
-                autoapprove: res.autoapprove != 0,
-                approver: res.approver != 0,
-            })
-        })
+        .map(|user| user.map(Row::to_user))
     }
 
     pub async fn user_new(&self, username: &str) -> Result<UserId, sqlx::Error> {
@@ -56,7 +61,7 @@ impl Repository {
                 INSERT INTO users (username)
                 VALUES (?)
             "#,
-            username
+            username,
         )
         .execute(&self.pool)
         .await
@@ -71,7 +76,7 @@ impl Repository {
                 WHERE username = ?
             "#,
             password.0,
-            username
+            username,
         )
         .execute(&self.pool)
         .await
@@ -86,7 +91,7 @@ impl Repository {
                 WHERE username = ?
             "#,
             enabled,
-            username
+            username,
         )
         .execute(&self.pool)
         .await
@@ -101,7 +106,7 @@ impl Repository {
                 WHERE username = ?
             "#,
             enabled,
-            username
+            username,
         )
         .execute(&self.pool)
         .await
@@ -116,7 +121,7 @@ impl Repository {
                 WHERE username = ?
             "#,
             enabled,
-            username
+            username,
         )
         .execute(&self.pool)
         .await
@@ -131,7 +136,7 @@ impl Repository {
                 WHERE username = ?
             "#,
             enabled,
-            username
+            username,
         )
         .execute(&self.pool)
         .await

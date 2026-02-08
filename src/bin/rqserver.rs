@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use askama::Template;
 use axum::{
     Router,
@@ -32,9 +34,7 @@ async fn main() -> Result<()> {
         .fallback(|| async { AppError::NotFound })
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
 
     axum::serve(listener, app).await.unwrap();

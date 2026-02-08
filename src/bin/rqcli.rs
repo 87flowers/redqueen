@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use redqueen::{
     db::Repository,
-    domain::{Password, UserId, generate_worker_key_pair},
+    domain::{Password, UserId, Worker, WorkerId, WorkerPublicKey, generate_worker_key_pair},
 };
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool};
 
@@ -18,6 +18,9 @@ enum Command {
     /// Perform user management
     #[command(subcommand)]
     User(UserCommand),
+    /// Perform worker management
+    #[command(subcommand)]
+    Worker(WorkerCommand),
     /// Miscellaneous utility commands
     #[command(subcommand)]
     Util(UtilCommand),
@@ -37,8 +40,11 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     match args.cmd {
         Command::User(cmd) => do_user_cmd(&repo, cmd).await,
+        Command::Worker(cmd) => do_worker_cmd(&repo, cmd).await,
         Command::Util(cmd) => do_util_cmd(&repo, cmd).await,
     }
+
+    Ok(())
 }
 
 #[derive(Subcommand)]
@@ -77,7 +83,7 @@ enum UserCommand {
     },
 }
 
-async fn do_user_cmd(repo: &Repository, cmd: UserCommand) -> Result<()> {
+async fn do_user_cmd(repo: &Repository, cmd: UserCommand) {
     let bool_to_str = |value| if value { "enabled" } else { "disabled" };
     match cmd {
         UserCommand::List => {
@@ -114,20 +120,16 @@ async fn do_user_cmd(repo: &Repository, cmd: UserCommand) -> Result<()> {
             Ok(Some(user)) => {
                 println!("Setting password for username {} (id: {})", user.username, user.id.0);
                 let Ok(password1) = rpassword::prompt_password("New password: ") else {
-                    println!("Password update aborted");
-                    return Ok(());
+                    return println!("Password update aborted");
                 };
                 let Ok(password2) = rpassword::prompt_password("New password (again): ") else {
-                    println!("Password update aborted");
-                    return Ok(());
+                    return println!("Password update aborted");
                 };
                 if password1 != password2 {
-                    println!("Passwords do not match");
-                    return Ok(());
+                    return println!("Passwords do not match");
                 }
                 let Some(hash) = Password::from_raw_password(&password1) else {
-                    println!("Failed to hash password");
-                    return Ok(());
+                    return println!("Failed to hash password");
                 };
                 match repo.user_set_password(&username, hash).await {
                     Ok(true) => println!("Password updated for {username}"),
@@ -159,7 +161,79 @@ async fn do_user_cmd(repo: &Repository, cmd: UserCommand) -> Result<()> {
             Err(err) => println!("Failed: {err}"),
         },
     }
-    Ok(())
+}
+
+#[derive(Subcommand)]
+enum WorkerCommand {
+    /// List workers in database
+    List { owner_username: Option<String> },
+    /// Get information about a worker
+    Get { id: i64 },
+    /// Add a new worker
+    Add { owner_username: String, worker_name: String, worker_public_key: String },
+    /// Enable/Disable worker
+    SetEnabled {
+        id: i64,
+        #[arg(action = clap::ArgAction::Set)]
+        value: bool,
+    },
+}
+
+async fn print_worker_list(mut workers: impl Stream<Item = Result<Worker, sqlx::Error>> + Unpin) {
+    let mut count = 0;
+    println!("id\towner\tname\tenabled");
+    while let Some(worker) = workers.next().await {
+        match worker {
+            Ok(worker) => {
+                println!("{}\t{}\t{}\t{}", worker.id.0, worker.owner.0, worker.name, worker.enabled);
+                count += 1;
+            }
+            Err(err) => println!("Error: {err}"),
+        }
+    }
+    println!("End of worker list ({} workers(s) found)", count);
+}
+
+async fn do_worker_cmd(repo: &Repository, cmd: WorkerCommand) {
+    let bool_to_str = |value| if value { "enabled" } else { "disabled" };
+    match cmd {
+        WorkerCommand::List { owner_username } => match owner_username {
+            Some(owner_username) => {
+                let owner = match repo.user_get(&owner_username).await {
+                    Ok(Some(user)) => user.id,
+                    Ok(None) => return println!("Username {owner_username} not found"),
+                    Err(err) => return println!("Failed to resolve owner username: {err}"),
+                };
+                print_worker_list(repo.worker_owned_by(&owner)).await;
+            }
+            None => print_worker_list(repo.worker_get_all()).await,
+        },
+        WorkerCommand::Get { id } => match repo.worker_get(WorkerId(id)).await {
+            Ok(Some(worker)) => println!("{:?}", worker),
+            Ok(None) => println!("Worker id {id} not found"),
+            Err(err) => println!("Failed: {err}"),
+        },
+        WorkerCommand::Add { owner_username, worker_name, worker_public_key } => {
+            let owner = match repo.user_get(&owner_username).await {
+                Ok(Some(user)) => user.id,
+                Ok(None) => return println!("Username {owner_username} not found"),
+                Err(err) => return println!("Failed to resolve owner username : {err}"),
+            };
+            let key = match WorkerPublicKey::from_str(&worker_public_key) {
+                Ok(key) => key,
+                Err(err) => return println!("Invalid public key: {err}"),
+            };
+            match repo.worker_new(owner, &worker_name, key).await {
+                Ok(WorkerId(id)) => println!("Worker successfully added with worker id {id}"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
+        WorkerCommand::SetEnabled { id, value } => match repo.worker_set_enabled(WorkerId(id), value).await {
+            Ok(true) => println!("Successfully {} worker id {id}", bool_to_str(value)),
+            Ok(false) => println!("Worker id {id} not found"),
+            Err(err) => println!("Failed: {err}"),
+        },
+    }
 }
 
 #[derive(Subcommand)]
@@ -168,7 +242,7 @@ enum UtilCommand {
     GenerateKeyPair,
 }
 
-async fn do_util_cmd(_repo: &Repository, cmd: UtilCommand) -> Result<()> {
+async fn do_util_cmd(_repo: &Repository, cmd: UtilCommand) {
     match cmd {
         UtilCommand::GenerateKeyPair => {
             let (public, private) = generate_worker_key_pair();
@@ -176,5 +250,4 @@ async fn do_util_cmd(_repo: &Repository, cmd: UtilCommand) -> Result<()> {
             println!("Private Key: {}", private.to_string());
         }
     }
-    Ok(())
 }

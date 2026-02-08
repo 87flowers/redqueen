@@ -3,9 +3,12 @@ use anyhow::{Result, anyhow};
 use argon2::password_hash::rand_core::OsRng;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 
+#[derive(Copy, Clone, Debug)]
 pub struct WorkerId(pub i64);
 
+#[derive(Debug)]
 pub struct WorkerPublicKey(VerifyingKey);
+
 pub struct WorkerPrivateKey(SigningKey);
 
 impl WorkerPublicKey {
@@ -49,10 +52,11 @@ pub fn generate_worker_key_pair() -> (WorkerPublicKey, WorkerPrivateKey) {
     (WorkerPublicKey::from_ed25519(public_key), WorkerPrivateKey::from_ed25519(private_key))
 }
 
+#[derive(Debug)]
 pub struct Worker {
-    id: WorkerId,
-    owner: UserId,
-    name: String,
-    enabled: bool,
-    key: WorkerPublicKey,
+    pub id: WorkerId,
+    pub owner: UserId,
+    pub name: String,
+    pub enabled: bool,
+    pub key: Option<WorkerPublicKey>,
 }
