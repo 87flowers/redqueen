@@ -1,5 +1,5 @@
 use super::Repository;
-use crate::domain::{UserId, Worker, WorkerId, WorkerPublicKey};
+use crate::server::domain::{UserId, Worker, WorkerId, WorkerPublicKey};
 use futures::{Stream, StreamExt};
 
 #[derive(sqlx::FromRow)]

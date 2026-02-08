@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use futures::{Stream, StreamExt};
-use redqueen::{
+use redqueen::server::{
     db::Repository,
     domain::{Password, UserId, Worker, WorkerId, WorkerPublicKey, generate_worker_key_pair},
 };

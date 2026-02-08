@@ -1,4 +1,4 @@
-use crate::domain::UserId;
+use crate::server::domain::UserId;
 use anyhow::{Result, anyhow};
 use argon2::password_hash::rand_core::OsRng;
 use ed25519_dalek::{SigningKey, VerifyingKey};
