@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT id, username, password, enabled, admin, autoapprove, approver\n                FROM users\n                WHERE username = ?\n            ",
+  "query": "\n                SELECT *\n                FROM users\n            ",
   "describe": {
     "columns": [
       {
@@ -40,7 +40,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
@@ -52,5 +52,5 @@
       false
     ]
   },
-  "hash": "93479fd93b0cd43b44c9712b3ddce7fc30511402abc71604570fbed3e67386af"
+  "hash": "d53955aaccc0adeaeb938e6cb4ab3626bd99ee337fe169663e1afc09a8a1798c"
 }

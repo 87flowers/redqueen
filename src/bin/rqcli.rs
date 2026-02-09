@@ -1,11 +1,14 @@
+#![forbid(unsafe_code)]
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use futures::{Stream, StreamExt};
+use redqueen::keys::{WorkerPublicKey, generate_worker_key_pair};
 use redqueen::server::{
+    connect_to_repository,
     db::Repository,
-    domain::{Password, UserId, Worker, WorkerId, WorkerPublicKey, generate_worker_key_pair},
+    domain::{Password, UserId, Worker, WorkerId},
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool};
 
 #[derive(Parser)]
 struct Args {
@@ -28,14 +31,7 @@ enum Command {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let db_opts = SqliteConnectOptions::new()
-        .filename("rqdatabase.db")
-        .journal_mode(SqliteJournalMode::Wal)
-        .create_if_missing(true);
-    let db = SqlitePool::connect_with(db_opts).await?;
-    sqlx::migrate!("./migrations").run(&db).await.unwrap();
-
-    let repo = Repository::new(db);
+    let repo = connect_to_repository().await?;
 
     let args = Args::parse();
     match args.cmd {

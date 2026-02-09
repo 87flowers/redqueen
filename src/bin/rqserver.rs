@@ -1,36 +1,31 @@
 #![forbid(unsafe_code)]
 
+use anyhow::Result;
 use askama::Template;
 use axum::{
-    Router,
+    Json, Router,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::get,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
+use redqueen::{
+    api::PongMessage,
+    server::{connect_to_repository, db::Repository},
+};
+use std::sync::Arc;
 
-type Db = sqlx::SqlitePool;
-type Result<T, E = crate::AppError> = std::result::Result<T, E>;
-
-#[derive(Clone)]
 struct AppState {
-    db: Db,
+    repo: Repository,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let db_opts = SqliteConnectOptions::new()
-        .filename("rqdatabase.db")
-        .journal_mode(SqliteJournalMode::Wal)
-        .create_if_missing(true);
-    let db = Db::connect_with(db_opts).await?;
-    sqlx::migrate!("./migrations").run(&db).await.unwrap();
-
-    let state = AppState { db };
+    let state = Arc::new(AppState { repo: connect_to_repository().await? });
 
     let app = Router::new()
         .route("/", get(handler))
         .route("/login", get(login_get_handler))
+        .route("/api/ping", get(handle_get_api_ping))
         .fallback(|| async { AppError::NotFound })
         .with_state(state);
 
@@ -52,6 +47,10 @@ async fn login_get_handler() -> Result<Response, AppError> {
     struct Tmpl {}
     let template = Tmpl {};
     Ok(Html(template.render()?).into_response())
+}
+
+async fn handle_get_api_ping() -> Json<PongMessage> {
+    Json(PongMessage { redqueen: true })
 }
 
 #[derive(Debug, displaydoc::Display, thiserror::Error)]

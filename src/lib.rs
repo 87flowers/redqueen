@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
-#![feature(iter_array_chunks)]
 
+pub mod client;
 pub mod server;
+
+pub mod api;
+pub mod keys;

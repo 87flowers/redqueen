@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO workers (owner, name, key)\n                VALUES (?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1827c9494a23c01f0b9d7bfbaae2aafb144d3fd088b91a4c24eec7e2f92c9a9d"
+}

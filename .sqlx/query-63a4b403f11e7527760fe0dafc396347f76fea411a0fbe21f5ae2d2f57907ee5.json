@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE workers\n                SET enabled = ?\n                WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "63a4b403f11e7527760fe0dafc396347f76fea411a0fbe21f5ae2d2f57907ee5"
+}
