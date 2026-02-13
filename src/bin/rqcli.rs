@@ -83,9 +83,14 @@ async fn do_user_cmd(repo: &Repository, cmd: UserCommand) {
     let bool_to_str = |value| if value { "enabled" } else { "disabled" };
     match cmd {
         UserCommand::List => {
-            println!("id\tname\tenabled");
-            let mut users = repo.user_get_all();
+            let Ok(mut tx) = repo.begin_read().await else {
+                return println!("Failed to start read transaction on database");
+            };
+
+            let mut users = tx.user_get_all();
             let mut count = 0;
+
+            println!("id\tname\tenabled");
             while let Some(user) = users.next().await {
                 match user {
                     Ok(user) => {
@@ -97,65 +102,100 @@ async fn do_user_cmd(repo: &Repository, cmd: UserCommand) {
             }
             println!("End of user list ({} user(s) found)", count);
         }
-        UserCommand::Get { username } => match repo.user_get(&username).await {
-            Ok(Some(user)) => println!("{:?}", user),
-            Ok(None) => println!("Username {username} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
-        UserCommand::Add { username } => match repo.user_new(&username).await {
-            Ok(UserId(id)) => {
-                println!("User successfully added with user id {id}");
-                println!("To enable user account, use command: rqcli user set-enable {username} true");
-                println!("To set user password, use command: rqcli user set-password {username}");
-                println!("A user needs to be *both* enabled and have a set password before being able to log in");
-                println!("A user starts out with no permissions. To see a list of options, see: rqcli user help");
+        UserCommand::Get { username } => {
+            let Ok(mut tx) = repo.begin_read().await else {
+                return println!("Failed to start read transaction on database");
+            };
+            match tx.user_get(&username).await {
+                Ok(Some(user)) => println!("{:?}", user),
+                Ok(None) => println!("Username {username} not found"),
+                Err(err) => println!("Failed: {err}"),
             }
-            Err(err) => println!("Failed: {err}"),
-        },
-        UserCommand::SetPassword { username } => match repo.user_get(&username).await {
-            Ok(Some(user)) => {
-                println!("Setting password for username {} (id: {})", user.username, user.id.0);
-                let Ok(password1) = rpassword::prompt_password("New password: ") else {
-                    return println!("Password update aborted");
-                };
-                let Ok(password2) = rpassword::prompt_password("New password (again): ") else {
-                    return println!("Password update aborted");
-                };
-                if password1 != password2 {
-                    return println!("Passwords do not match");
+        }
+        UserCommand::Add { username } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.user_new(&username).await {
+                Ok(UserId(id)) => {
+                    println!("User successfully added with user id {id}");
+                    println!("To enable user account, use command: rqcli user set-enable {username} true");
+                    println!("To set user password, use command: rqcli user set-password {username}");
+                    println!("A user needs to be *both* enabled and have a set password before being able to log in");
+                    println!("A user starts out with no permissions. To see a list of options, see: rqcli user help");
                 }
-                let Some(hash) = Password::from_raw_password(&password1) else {
-                    return println!("Failed to hash password");
-                };
-                match repo.user_set_password(&username, hash).await {
-                    Ok(true) => println!("Password updated for {username}"),
-                    Ok(false) => println!("Could not find username {username} when setting password"),
-                    Err(err) => println!("Failed: {err}"),
-                }
+                Err(err) => println!("Failed: {err}"),
             }
-            Ok(None) => println!("Username {username} not found"),
-            Err(err) => println!("Failure while retrieving user infomation: {err}"),
-        },
-        UserCommand::SetEnabled { username, value } => match repo.user_set_enabled(&username, value).await {
-            Ok(true) => println!("Successfully {} {username}", bool_to_str(value)),
-            Ok(false) => println!("Username {username} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
-        UserCommand::SetAutoApprove { username, value } => match repo.user_set_auto_approve(&username, value).await {
-            Ok(true) => println!("Automatic approval of tests by {username} has been {}", bool_to_str(value)),
-            Ok(false) => println!("Username {username} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
-        UserCommand::SetApprover { username, value } => match repo.user_set_approver(&username, value).await {
-            Ok(true) => println!("{username} is {} an approver", if value { "now" } else { "now not" }),
-            Ok(false) => println!("Username {username} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
-        UserCommand::SetAdmin { username, value } => match repo.user_set_admin(&username, value).await {
-            Ok(true) => println!("{username} is {} an admin", if value { "now" } else { "now not" }),
-            Ok(false) => println!("Username {username} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
+        }
+        UserCommand::SetPassword { username } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.user_get(&username).await {
+                Ok(Some(user)) => {
+                    println!("Setting password for username {} (id: {})", user.username, user.id.0);
+                    let Ok(password1) = rpassword::prompt_password("New password: ") else {
+                        return println!("Password update aborted");
+                    };
+                    let Ok(password2) = rpassword::prompt_password("New password (again): ") else {
+                        return println!("Password update aborted");
+                    };
+                    if password1 != password2 {
+                        return println!("Passwords do not match");
+                    }
+                    let Some(hash) = Password::from_raw_password(&password1) else {
+                        return println!("Failed to hash password");
+                    };
+                    match tx.user_set_password(&username, hash).await {
+                        Ok(true) => println!("Password updated for {username}"),
+                        Ok(false) => println!("Could not find username {username} when setting password"),
+                        Err(err) => println!("Failed: {err}"),
+                    }
+                }
+                Ok(None) => println!("Username {username} not found"),
+                Err(err) => println!("Failure while retrieving user infomation: {err}"),
+            }
+        }
+        UserCommand::SetEnabled { username, value } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.user_set_enabled(&username, value).await {
+                Ok(true) => println!("Successfully {} {username}", bool_to_str(value)),
+                Ok(false) => println!("Username {username} not found"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
+        UserCommand::SetAutoApprove { username, value } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.user_set_auto_approve(&username, value).await {
+                Ok(true) => println!("Automatic approval of tests by {username} has been {}", bool_to_str(value)),
+                Ok(false) => println!("Username {username} not found"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
+        UserCommand::SetApprover { username, value } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.user_set_approver(&username, value).await {
+                Ok(true) => println!("{username} is {} an approver", if value { "now" } else { "now not" }),
+                Ok(false) => println!("Username {username} not found"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
+        UserCommand::SetAdmin { username, value } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.user_set_admin(&username, value).await {
+                Ok(true) => println!("{username} is {} an admin", if value { "now" } else { "now not" }),
+                Ok(false) => println!("Username {username} not found"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
     }
 }
 
@@ -193,24 +233,37 @@ async fn print_worker_list(mut workers: impl Stream<Item = Result<Worker, sqlx::
 async fn do_worker_cmd(repo: &Repository, cmd: WorkerCommand) {
     let bool_to_str = |value| if value { "enabled" } else { "disabled" };
     match cmd {
-        WorkerCommand::List { owner_username } => match owner_username {
-            Some(owner_username) => {
-                let owner = match repo.user_get(&owner_username).await {
-                    Ok(Some(user)) => user.id,
-                    Ok(None) => return println!("Username {owner_username} not found"),
-                    Err(err) => return println!("Failed to resolve owner username: {err}"),
-                };
-                print_worker_list(repo.worker_owned_by(&owner)).await;
+        WorkerCommand::List { owner_username } => {
+            let Ok(mut tx) = repo.begin_read().await else {
+                return println!("Failed to start read transaction on database");
+            };
+            match owner_username {
+                Some(owner_username) => {
+                    let owner = match tx.user_get(&owner_username).await {
+                        Ok(Some(user)) => user.id,
+                        Ok(None) => return println!("Username {owner_username} not found"),
+                        Err(err) => return println!("Failed to resolve owner username: {err}"),
+                    };
+                    print_worker_list(tx.worker_owned_by(&owner)).await;
+                }
+                None => print_worker_list(tx.worker_get_all()).await,
             }
-            None => print_worker_list(repo.worker_get_all()).await,
-        },
-        WorkerCommand::Get { id } => match repo.worker_get(WorkerId(id)).await {
-            Ok(Some(worker)) => println!("{:?}", worker),
-            Ok(None) => println!("Worker id {id} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
+        }
+        WorkerCommand::Get { id } => {
+            let Ok(mut tx) = repo.begin_read().await else {
+                return println!("Failed to start read transaction on database");
+            };
+            match tx.worker_get(WorkerId(id)).await {
+                Ok(Some(worker)) => println!("{:?}", worker),
+                Ok(None) => println!("Worker id {id} not found"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
         WorkerCommand::Add { owner_username, worker_name, worker_public_key } => {
-            let owner = match repo.user_get(&owner_username).await {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            let owner = match tx.user_get(&owner_username).await {
                 Ok(Some(user)) => user.id,
                 Ok(None) => return println!("Username {owner_username} not found"),
                 Err(err) => return println!("Failed to resolve owner username : {err}"),
@@ -219,16 +272,21 @@ async fn do_worker_cmd(repo: &Repository, cmd: WorkerCommand) {
                 Ok(key) => key,
                 Err(err) => return println!("Invalid public key: {err}"),
             };
-            match repo.worker_new(owner, &worker_name, key).await {
+            match tx.worker_new(owner, &worker_name, key).await {
                 Ok(WorkerId(id)) => println!("Worker successfully added with worker id {id}"),
                 Err(err) => println!("Failed: {err}"),
             }
         }
-        WorkerCommand::SetEnabled { id, value } => match repo.worker_set_enabled(WorkerId(id), value).await {
-            Ok(true) => println!("Successfully {} worker id {id}", bool_to_str(value)),
-            Ok(false) => println!("Worker id {id} not found"),
-            Err(err) => println!("Failed: {err}"),
-        },
+        WorkerCommand::SetEnabled { id, value } => {
+            let Ok(mut tx) = repo.begin_write().await else {
+                return println!("Failed to start write transaction on database");
+            };
+            match tx.worker_set_enabled(WorkerId(id), value).await {
+                Ok(true) => println!("Successfully {} worker id {id}", bool_to_str(value)),
+                Ok(false) => println!("Worker id {id} not found"),
+                Err(err) => println!("Failed: {err}"),
+            }
+        }
     }
 }
 

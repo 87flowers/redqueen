@@ -1,4 +1,4 @@
-use super::Repository;
+use super::Transaction;
 use crate::keys::WorkerPublicKey;
 use crate::server::domain::{UserId, Worker, WorkerId};
 use futures::{Stream, StreamExt};
@@ -24,8 +24,8 @@ impl Row {
     }
 }
 
-impl Repository {
-    pub async fn worker_get(&self, id: WorkerId) -> Result<Option<Worker>, sqlx::Error> {
+impl<const WRITE: bool> Transaction<WRITE> {
+    pub async fn worker_get(&mut self, id: WorkerId) -> Result<Option<Worker>, sqlx::Error> {
         sqlx::query_as!(
             Row,
             r#"
@@ -35,12 +35,12 @@ impl Repository {
             "#,
             id.0
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *self.tx)
         .await
         .map(|row| row.map(Row::to_worker))
     }
 
-    pub fn worker_get_all(&self) -> impl Stream<Item = Result<Worker, sqlx::Error>> {
+    pub fn worker_get_all(&mut self) -> impl Stream<Item = Result<Worker, sqlx::Error>> {
         sqlx::query_as!(
             Row,
             r#"
@@ -48,12 +48,12 @@ impl Repository {
                 FROM workers
             "#,
         )
-        .fetch(&self.pool)
+        .fetch(&mut *self.tx)
         .map(|row| row.map(Row::to_worker))
     }
 
     pub fn worker_owned_by<'a, 'b, 'c>(
-        &'a self, owner: &'b UserId,
+        &'a mut self, owner: &'b UserId,
     ) -> impl Stream<Item = Result<Worker, sqlx::Error>> + 'c
     where
         'a: 'c,
@@ -68,11 +68,15 @@ impl Repository {
             "#,
             owner.0,
         )
-        .fetch(&self.pool)
+        .fetch(&mut *self.tx)
         .map(|row| row.map(Row::to_worker))
     }
+}
 
-    pub async fn worker_new(&self, owner: UserId, name: &str, key: WorkerPublicKey) -> Result<WorkerId, sqlx::Error> {
+impl Transaction<true> {
+    pub async fn worker_new(
+        &mut self, owner: UserId, name: &str, key: WorkerPublicKey,
+    ) -> Result<WorkerId, sqlx::Error> {
         let key = key.to_string();
         sqlx::query!(
             r#"
@@ -83,12 +87,12 @@ impl Repository {
             name,
             key,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| WorkerId(r.last_insert_rowid()))
     }
 
-    pub async fn worker_set_enabled(&self, id: WorkerId, enabled: bool) -> Result<bool, sqlx::Error> {
+    pub async fn worker_set_enabled(&mut self, id: WorkerId, enabled: bool) -> Result<bool, sqlx::Error> {
         sqlx::query!(
             r#"
                 UPDATE workers
@@ -98,7 +102,7 @@ impl Repository {
             enabled,
             id.0,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| r.rows_affected() > 0)
     }

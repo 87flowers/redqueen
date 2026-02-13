@@ -4,7 +4,9 @@ use anyhow::Result;
 use askama::Template;
 use axum::{
     Json, Router,
+    extract::{Request, State},
     http::StatusCode,
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
 };
@@ -25,9 +27,8 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/", get(handler))
         .route("/login", get(login_get_handler))
-        .route("/api/ping", get(handle_get_api_ping))
-        .fallback(|| async { AppError::NotFound })
-        .with_state(state);
+        .merge(api_routes(state.clone()))
+        .fallback(|| async { AppError::NotFound });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
@@ -35,6 +36,17 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
+}
+
+fn api_routes(state: Arc<AppState>) -> Router {
+    let unauth_api = Router::new().route("/api/ping", get(handle_get_api_ping)).with_state(state.clone());
+
+    let auth_api = Router::new()
+        .route("/api/authed_ping", get(handle_get_api_authed_ping))
+        .route_layer(middleware::from_fn_with_state(state.clone(), api_authentication))
+        .with_state(state.clone());
+
+    Router::new().merge(unauth_api).merge(auth_api)
 }
 
 async fn handler() -> Response {
@@ -51,6 +63,28 @@ async fn login_get_handler() -> Result<Response, AppError> {
 
 async fn handle_get_api_ping() -> Json<PongMessage> {
     Json(PongMessage { redqueen: true })
+}
+
+async fn handle_get_api_authed_ping() -> Json<PongMessage> {
+    Json(PongMessage { redqueen: true })
+}
+
+async fn api_authentication(
+    State(state): State<Arc<AppState>>, req: Request, next: Next,
+) -> Result<Response, StatusCode> {
+    let authorization_header =
+        req.headers().get("Authorization").and_then(|h| h.to_str().ok()).ok_or(StatusCode::UNAUTHORIZED)?;
+    let authorization_header = authorization_header.split_whitespace();
+
+    let Ok(["RedQueen", username, public_key, time_stamp, nonce, signature]): Result<[&str; 6], _> =
+        authorization_header.collect::<Vec<_>>().try_into()
+    else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    // state.repo.worker_get_by_pubkey(username, public_key);
+
+    Ok(next.run(req).await)
 }
 
 #[derive(Debug, displaydoc::Display, thiserror::Error)]

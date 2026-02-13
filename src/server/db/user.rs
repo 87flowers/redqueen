@@ -1,4 +1,4 @@
-use super::Repository;
+use super::Transaction;
 use crate::server::domain::{Password, User, UserId};
 use futures::{Stream, stream::StreamExt};
 
@@ -27,8 +27,8 @@ impl Row {
     }
 }
 
-impl Repository {
-    pub async fn user_get(&self, username: &str) -> Result<Option<User>, sqlx::Error> {
+impl<const WRITE: bool> Transaction<WRITE> {
+    pub async fn user_get(&mut self, username: &str) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as!(
             Row,
             r#"
@@ -38,12 +38,12 @@ impl Repository {
             "#,
             username,
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *self.tx)
         .await
         .map(|user| user.map(Row::to_user))
     }
 
-    pub fn user_get_all(&self) -> impl Stream<Item = Result<User, sqlx::Error>> {
+    pub fn user_get_all(&mut self) -> impl Stream<Item = Result<User, sqlx::Error>> {
         sqlx::query_as!(
             Row,
             r#"
@@ -51,11 +51,13 @@ impl Repository {
                 FROM users
             "#
         )
-        .fetch(&self.pool)
+        .fetch(&mut *self.tx)
         .map(|user| user.map(Row::to_user))
     }
+}
 
-    pub async fn user_new(&self, username: &str) -> Result<UserId, sqlx::Error> {
+impl Transaction<true> {
+    pub async fn user_new(&mut self, username: &str) -> Result<UserId, sqlx::Error> {
         sqlx::query!(
             r#"
                 INSERT INTO users (username)
@@ -63,12 +65,12 @@ impl Repository {
             "#,
             username,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| UserId(r.last_insert_rowid()))
     }
 
-    pub async fn user_set_password(&self, username: &str, password: Password) -> Result<bool, sqlx::Error> {
+    pub async fn user_set_password(&mut self, username: &str, password: Password) -> Result<bool, sqlx::Error> {
         sqlx::query!(
             r#"
                 UPDATE users
@@ -78,12 +80,12 @@ impl Repository {
             password.0,
             username,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| r.rows_affected() > 0)
     }
 
-    pub async fn user_set_enabled(&self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
+    pub async fn user_set_enabled(&mut self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
         sqlx::query!(
             r#"
                 UPDATE users
@@ -93,12 +95,12 @@ impl Repository {
             enabled,
             username,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| r.rows_affected() > 0)
     }
 
-    pub async fn user_set_auto_approve(&self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
+    pub async fn user_set_auto_approve(&mut self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
         sqlx::query!(
             r#"
                 UPDATE users
@@ -108,12 +110,12 @@ impl Repository {
             enabled,
             username,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| r.rows_affected() > 0)
     }
 
-    pub async fn user_set_approver(&self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
+    pub async fn user_set_approver(&mut self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
         sqlx::query!(
             r#"
                 UPDATE users
@@ -123,12 +125,12 @@ impl Repository {
             enabled,
             username,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| r.rows_affected() > 0)
     }
 
-    pub async fn user_set_admin(&self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
+    pub async fn user_set_admin(&mut self, username: &str, enabled: bool) -> Result<bool, sqlx::Error> {
         sqlx::query!(
             r#"
                 UPDATE users
@@ -138,7 +140,7 @@ impl Repository {
             enabled,
             username,
         )
-        .execute(&self.pool)
+        .execute(&mut *self.tx)
         .await
         .map(|r| r.rows_affected() > 0)
     }
