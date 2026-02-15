@@ -1,5 +1,6 @@
 pub mod db;
 pub mod domain;
+pub mod service;
 
 pub async fn connect_to_repository() -> Result<db::Repository, sqlx::Error> {
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool};

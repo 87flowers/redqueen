@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use futures::{Stream, StreamExt};
-use redqueen::keys::{WorkerPublicKey, generate_worker_key_pair};
+use redqueen::common::domain::{WorkerPublicKey, generate_worker_key_pair};
 use redqueen::server::{
     connect_to_repository,
     db::Repository,

@@ -1,5 +1,5 @@
 use super::Transaction;
-use crate::keys::WorkerPublicKey;
+use crate::common::domain::WorkerPublicKey;
 use crate::server::domain::{UserId, Worker, WorkerId};
 use futures::{Stream, StreamExt};
 

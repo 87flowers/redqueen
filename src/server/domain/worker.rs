@@ -1,4 +1,5 @@
-use crate::{keys::WorkerPublicKey, server::domain::UserId};
+use crate::common::domain::WorkerPublicKey;
+use crate::server::domain::UserId;
 
 #[derive(Copy, Clone, Debug)]
 pub struct WorkerId(pub i64);

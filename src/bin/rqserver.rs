@@ -11,7 +11,7 @@ use axum::{
     routing::get,
 };
 use redqueen::{
-    api::PongMessage,
+    common::api::PongMessage,
     server::{connect_to_repository, db::Repository},
 };
 use std::sync::Arc;
