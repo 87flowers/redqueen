@@ -4,12 +4,14 @@ use anyhow::Result;
 use askama::Template;
 use axum::{
     Json, Router,
+    body::{Body, Bytes, to_bytes},
     extract::{Request, State},
     http::{StatusCode, header::CONTENT_LENGTH},
     middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
 };
+use bytes::Buf;
 use dashmap::{DashMap, Entry};
 use redqueen::{
     common::{
@@ -20,6 +22,7 @@ use redqueen::{
     },
     server::{connect_to_repository, db::Repository},
 };
+use sha2::{Digest, Sha512};
 use std::{sync::Arc, time::Duration};
 
 struct NonceCache {
@@ -115,7 +118,8 @@ async fn handle_get_api_ping() -> Json<PongMessage> {
     Json(PongMessage { redqueen: true })
 }
 
-async fn handle_get_api_authed_ping() -> Json<PongMessage> {
+async fn handle_get_api_authed_ping(body: String) -> Json<PongMessage> {
+    eprintln!("{body}");
     Json(PongMessage { redqueen: true })
 }
 
@@ -183,7 +187,27 @@ async fn api_authentication(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    Ok(next.run(req).await)
+    let (parts, body) = req.into_parts();
+    let mut bytes = to_bytes(body, usize::MAX).await.map_err(|_| StatusCode::PAYLOAD_TOO_LARGE)?;
+    if bytes.len() != content_length {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let bytes_copy = bytes.clone();
+
+    let mut hasher = Sha512::new();
+    while bytes.has_remaining() {
+        let chunk = bytes.chunk();
+        hasher.update(chunk);
+        bytes.advance(chunk.len());
+    }
+    let current_hash = hasher.finalize();
+
+    if current_hash != body_hash.into() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    Ok(next.run(Request::from_parts(parts, Body::from(bytes_copy))).await)
 }
 
 #[derive(Debug, displaydoc::Display, thiserror::Error)]

@@ -139,7 +139,7 @@ async fn do_remote_cmd(cmd: RemoteCommand) {
             };
 
             let client = reqwest::Client::new();
-            let body = "";
+            let body = "{}";
             let response = build_request(&client, remote, Method::GET, "/api/auth_ping", BodyMeta::from_str(body))
                 .body(body)
                 .send()

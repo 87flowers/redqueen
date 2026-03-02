@@ -8,6 +8,7 @@ anyhow = "1.0.100"
 argon2 = { version = "0.5.3", features = ["password-hash", "std"] }
 askama = "0.15.1"
 axum = "0.8.8"
+bytes = "1.11.1"
 clap = { version = "4.5.57", features = ["derive"] }
 const-hex = "1.17.0"
 dashmap = "6.1.0"
@@ -28,4 +29,3 @@ tokio = { version = "1.49.0", features = ["full"] }
 toml_edit = { version = "0.24.0", features = ["serde"] }
 tracing-subscriber = "0.3.22"
 url = { version = "2.5.8", features = ["serde"] }
-uuid = { version = "1.21.0", features = ["v4"] }
