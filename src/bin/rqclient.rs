@@ -1,11 +1,17 @@
 #![forbid(unsafe_code)]
 
-use std::fs;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use redqueen::{api::PongMessage, client::paths::Paths, keys::generate_worker_key_pair};
-use reqwest::{StatusCode, Url};
+use redqueen::{
+    client::{
+        config::Configuration,
+        paths::Paths,
+        request::{BodyMeta, build_request},
+    },
+    common::{api::PongMessage, domain::generate_worker_key_pair},
+};
+use reqwest::{Method, StatusCode, Url};
+use std::fs;
 use toml_edit::{Table, value};
 
 #[derive(Parser)]
@@ -34,12 +40,14 @@ async fn main() -> Result<()> {
 #[derive(Subcommand)]
 enum RemoteCommand {
     /// Add a remote
-    Add { remote_name: String, remote_url: String },
+    Add { remote_name: String, remote_url: String, username: String },
+    /// Ping a remote
+    Ping { remote_name: String },
 }
 
 async fn do_remote_cmd(cmd: RemoteCommand) {
     match cmd {
-        RemoteCommand::Add { remote_name, remote_url } => {
+        RemoteCommand::Add { remote_name, remote_url, username } => {
             let url = match Url::parse(&remote_url) {
                 Ok(url) => url,
                 Err(err) => return println!("Failed to parse remote url: {err}"),
@@ -95,6 +103,7 @@ async fn do_remote_cmd(cmd: RemoteCommand) {
             let mut new_remote = toml_edit::Table::new();
             new_remote.insert("url", value(remote_url));
             new_remote.insert("priority", value(0));
+            new_remote.insert("username", value(username));
             new_remote.insert("public_key", value(public_key.to_string()));
             new_remote.insert("private_key", value(private_key.to_string()));
 
@@ -117,6 +126,26 @@ async fn do_remote_cmd(cmd: RemoteCommand) {
                 .expect("Error opening config file for writing");
             f.write_all(config.as_bytes()).expect("Error writing configuation to file");
             f.flush().expect("Error flushing configuration to file");
+        }
+        RemoteCommand::Ping { remote_name } => {
+            let config_file_path = Paths::new().config_dir().join("rqclient.conf");
+            let config: Configuration = match fs::read_to_string(&config_file_path) {
+                Ok(config) => toml_edit::de::from_str(&config).expect("Invalid configuration file"),
+                Err(err) => return println!("Error reading configuration: {err}"),
+            };
+
+            let Some(remote) = config.remotes.get(&remote_name) else {
+                return println!("Remote {remote_name} not found in configuration");
+            };
+
+            let client = reqwest::Client::new();
+            let body = "";
+            let response = build_request(&client, remote, Method::GET, "/api/auth_ping", BodyMeta::from_str(body))
+                .body(body)
+                .send()
+                .await
+                .unwrap();
+            println!("{:#?}", response);
         }
     }
 }

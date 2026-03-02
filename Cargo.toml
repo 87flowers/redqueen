@@ -10,20 +10,22 @@ askama = "0.15.1"
 axum = "0.8.8"
 clap = { version = "4.5.57", features = ["derive"] }
 const-hex = "1.17.0"
+dashmap = "6.1.0"
 displaydoc = "0.2.5"
-ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
+ed25519-dalek = { version = "^3.0.0-pre.6", features = ["rand_core"] }
 etcetera = "0.11.0"
 futures = "0.3.31"
+getrandom = { version = "0.4.1", features = ["sys_rng"] }
 git2 = "0.20.3"
 reqwest = { version = "0.13.2", features = ["gzip", "json"] }
 rpassword = "7.4.0"
-serde = "1.0.228"
+serde = { version = "1.0.228", features = ["derive"] }
+sha2 = "0.10.9"
 sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio", "migrate"] }
 tempfile = "3.24.0"
 thiserror = "2.0.17"
 tokio = { version = "1.49.0", features = ["full"] }
-toml_edit = "0.24.0"
+toml_edit = { version = "0.24.0", features = ["serde"] }
 tracing-subscriber = "0.3.22"
-
-[build]
-rustflags = ["--cfg=sqlx_macros_unstable"]
+url = { version = "2.5.8", features = ["serde"] }
+uuid = { version = "1.21.0", features = ["v4"] }

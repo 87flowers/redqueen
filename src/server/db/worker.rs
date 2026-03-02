@@ -33,7 +33,26 @@ impl<const WRITE: bool> Transaction<WRITE> {
                 FROM workers
                 WHERE id = ?
             "#,
-            id.0
+            id.0,
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map(|row| row.map(Row::to_worker))
+    }
+
+    pub async fn worker_get_by_pubkey(
+        &mut self, owner: UserId, key: WorkerPublicKey,
+    ) -> Result<Option<Worker>, sqlx::Error> {
+        let key = key.to_string();
+        sqlx::query_as!(
+            Row,
+            r#"
+                SELECT *
+                FROM workers
+                WHERE owner = ? AND key = ?
+            "#,
+            owner.0,
+            key,
         )
         .fetch_optional(&mut *self.tx)
         .await
