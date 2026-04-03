@@ -28,4 +28,8 @@ impl Paths {
     pub fn cache_dir(&self) -> &PathBuf {
         &self.cache_dir
     }
+
+    pub fn config_file_path(&self) -> PathBuf {
+        self.config_dir().join("rqclient.conf")
+    }
 }

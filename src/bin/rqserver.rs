@@ -16,7 +16,7 @@ use dashmap::{DashMap, Entry};
 use redqueen::{
     common::{
         api::PongMessage,
-        domain::{Signature, WorkerPublicKey},
+        domain::{BenchWorkloadConfig, EngineBranch, Signature, WorkerPublicKey, Workload},
         headers,
         time::unix_time,
     },
@@ -96,6 +96,7 @@ fn api_routes(state: Arc<AppState>) -> Router {
 
     let auth_api = Router::new()
         .route("/api/auth_ping", get(handle_get_api_authed_ping))
+        .route("/api/workload/current", get(handle_get_api_workload_current))
         .route_layer(middleware::from_fn_with_state(state.clone(), api_authentication))
         .with_state(state.clone());
 
@@ -121,6 +122,18 @@ async fn handle_get_api_ping() -> Json<PongMessage> {
 async fn handle_get_api_authed_ping(body: String) -> Json<PongMessage> {
     eprintln!("{body}");
     Json(PongMessage { redqueen: true })
+}
+
+async fn handle_get_api_workload_current() -> Json<Workload> {
+    Json(Workload::Bench {
+        config: BenchWorkloadConfig {
+            engine: EngineBranch {
+                url: "https://github.com/codedeliveryservice/Reckless".to_string(),
+                branch: "main".to_string(),
+            },
+        },
+        state: None,
+    })
 }
 
 async fn api_authentication(

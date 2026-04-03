@@ -5,13 +5,18 @@ use clap::{Parser, Subcommand};
 use redqueen::{
     client::{
         config::Configuration,
+        domain::Remote,
         paths::Paths,
         request::{BodyMeta, build_request},
     },
-    common::{api::PongMessage, domain::generate_worker_key_pair},
+    common::{
+        api::PongMessage,
+        domain::{Workload, generate_worker_key_pair},
+    },
 };
 use reqwest::{Method, StatusCode, Url};
-use std::fs;
+use std::{fs, time::Duration};
+use tokio::time::sleep;
 use toml_edit::{Table, value};
 
 #[derive(Parser)]
@@ -25,6 +30,8 @@ enum Command {
     /// Perform remotes management
     #[command(subcommand)]
     Remote(RemoteCommand),
+    /// Run client as configured
+    Run,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -32,8 +39,8 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     match args.cmd {
         Command::Remote(cmd) => do_remote_cmd(cmd).await,
+        Command::Run => do_run().await,
     }
-
     Ok(())
 }
 
@@ -128,7 +135,7 @@ async fn do_remote_cmd(cmd: RemoteCommand) {
             f.flush().expect("Error flushing configuration to file");
         }
         RemoteCommand::Ping { remote_name } => {
-            let config_file_path = Paths::new().config_dir().join("rqclient.conf");
+            let config_file_path = Paths::new().config_file_path();
             let config: Configuration = match fs::read_to_string(&config_file_path) {
                 Ok(config) => toml_edit::de::from_str(&config).expect("Invalid configuration file"),
                 Err(err) => return println!("Error reading configuration: {err}"),
@@ -147,5 +154,64 @@ async fn do_remote_cmd(cmd: RemoteCommand) {
                 .unwrap();
             println!("{:#?}", response);
         }
+    }
+}
+
+async fn get_workload() -> Option<(String, Remote, Workload)> {
+    let config_file_path = Paths::new().config_file_path();
+    let config: Configuration = match fs::read_to_string(&config_file_path) {
+        Ok(config) => toml_edit::de::from_str(&config).expect("Invalid configuration file"),
+        Err(err) => {
+            println!("Error reading configuration: {err}");
+            return None;
+        }
+    };
+
+    let mut remotes: Vec<_> = config.remotes.iter().collect();
+    remotes.sort_by_key(|remote| remote.1.priority);
+
+    for (remote_name, remote) in remotes {
+        let client = reqwest::Client::new();
+        let body = "";
+        let response =
+            match build_request(&client, remote, Method::GET, "/api/workload/current", BodyMeta::from_str(body))
+                .body(body)
+                .send()
+                .await
+            {
+                Err(err) => {
+                    println!("Error when retrieving current workload from remote {remote_name}: {err}");
+                    continue;
+                }
+                Ok(response) => response,
+            };
+        if response.status() != StatusCode::OK {
+            println!("Unexpected status code from remote {remote_name}: {}", response.status());
+            continue;
+        }
+        let workload = match response.json::<Workload>().await {
+            Err(err) => {
+                println!("Failed to parse workload from remote {remote_name}: {err}");
+                continue;
+            }
+            Ok(workload) => workload,
+        };
+
+        return Some((remote_name.to_string(), remote.clone(), workload));
+    }
+
+    None
+}
+
+async fn do_run() {
+    loop {
+        let Some((remote_name, remote, workload)) = get_workload().await else {
+            sleep(Duration::from_mins(2)).await;
+            continue;
+        };
+
+        eprintln!("workload from remote {remote_name} at {}", remote.url);
+        eprintln!("{:?}", workload);
+        sleep(Duration::from_secs(10)).await;
     }
 }

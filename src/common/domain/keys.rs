@@ -3,9 +3,10 @@ use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use getrandom::{SysRng, rand_core::UnwrapErr};
 use serde::Deserialize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorkerPublicKey(VerifyingKey);
 
+#[derive(Clone)]
 pub struct WorkerPrivateKey(SigningKey);
 
 pub struct Signature([u8; 64]);
