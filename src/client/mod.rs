@@ -2,6 +2,7 @@ pub mod config;
 pub mod domain;
 pub mod paths;
 pub mod request;
+pub mod executor;
 
 use std::{path::Path, process::Command};
 

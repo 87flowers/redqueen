@@ -6,11 +6,12 @@ use redqueen::{
     client::{
         config::Configuration,
         domain::Remote,
+        executor::execute_workload,
         paths::Paths,
         request::{BodyMeta, build_request},
     },
     common::{
-        api::PongMessage,
+        api::{PongMessage, WorkloadMessage},
         domain::{Workload, generate_worker_key_pair},
     },
 };
@@ -157,7 +158,7 @@ async fn do_remote_cmd(cmd: RemoteCommand) {
     }
 }
 
-async fn get_workload() -> Option<(String, Remote, Workload)> {
+async fn get_workload() -> Option<(String, Remote, WorkloadMessage)> {
     let config_file_path = Paths::new().config_file_path();
     let config: Configuration = match fs::read_to_string(&config_file_path) {
         Ok(config) => toml_edit::de::from_str(&config).expect("Invalid configuration file"),
@@ -189,7 +190,7 @@ async fn get_workload() -> Option<(String, Remote, Workload)> {
             println!("Unexpected status code from remote {remote_name}: {}", response.status());
             continue;
         }
-        let workload = match response.json::<Workload>().await {
+        let workload = match response.json::<WorkloadMessage>().await {
             Err(err) => {
                 println!("Failed to parse workload from remote {remote_name}: {err}");
                 continue;
@@ -210,8 +211,9 @@ async fn do_run() {
             continue;
         };
 
-        eprintln!("workload from remote {remote_name} at {}", remote.url);
-        eprintln!("{:?}", workload);
-        sleep(Duration::from_secs(10)).await;
+        println!("Selected workload from remote {remote_name} at {}:", remote.url);
+        println!("{:?}", workload);
+
+        execute_workload(&remote_name, remote, workload);
     }
 }

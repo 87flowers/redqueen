@@ -15,15 +15,17 @@ use bytes::Buf;
 use dashmap::{DashMap, Entry};
 use redqueen::{
     common::{
-        api::PongMessage,
-        domain::{BenchWorkloadConfig, EngineBranch, Signature, WorkerPublicKey, Workload},
+        api::{PongMessage, WorkloadMessage},
+        domain::{
+            BenchWorkloadConfig, Engine, EngineBranch, EngineId, Signature, WorkerPublicKey, Workload, WorkloadId,
+        },
         headers,
         time::unix_time,
     },
     server::{connect_to_repository, db::Repository},
 };
 use sha2::{Digest, Sha512};
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 struct NonceCache {
     store: DashMap<u64, i64>,
@@ -124,15 +126,30 @@ async fn handle_get_api_authed_ping(body: String) -> Json<PongMessage> {
     Json(PongMessage { redqueen: true })
 }
 
-async fn handle_get_api_workload_current() -> Json<Workload> {
-    Json(Workload::Bench {
-        config: BenchWorkloadConfig {
-            engine: EngineBranch {
-                url: "https://github.com/codedeliveryservice/Reckless".to_string(),
-                branch: "main".to_string(),
+async fn handle_get_api_workload_current() -> Json<WorkloadMessage> {
+    Json(WorkloadMessage {
+        workload: Workload::Bench {
+            id: WorkloadId(0),
+            config: BenchWorkloadConfig {
+                engine: EngineBranch {
+                    engine_id: EngineId(1),
+                    url: "https://github.com/codedeliveryservice/Reckless".to_string(),
+                    branch_name: "main".to_string(),
+                    commit_hash: "7369dde331c4062b24be0c419defe9f389b476d5".to_string(),
+                },
             },
+            state: None,
         },
-        state: None,
+        related_engines: HashMap::from([(
+            EngineId(1),
+            Engine {
+                id: EngineId(1),
+                name: "Reckless".to_string(),
+                default_url: "https://github.com/codedeliveryservice/Reckless".to_string(),
+                default_branch: "main".to_string(),
+                base_nps: 660000,
+            },
+        )]),
     })
 }
 
